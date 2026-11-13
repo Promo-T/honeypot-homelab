@@ -50,3 +50,6 @@ flowchart LR
 - DNAT only for the honeypot ports; the admin SSH port is moved off 22 so Cowrie can listen there.
 - Masquerade only for new outbound connections from the tunnel. Inbound attacks are not NAT'ed, so real source IPs stay in the logs.
 - Management ports (`64295`, `64297`) are never forwarded.
+
+---
+# Work in progress
