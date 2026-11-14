@@ -51,5 +51,52 @@ flowchart LR
 - Masquerade only for new outbound connections from the tunnel. Inbound attacks are not NAT'ed, so real source IPs stay in the logs.
 - Management ports (`64295`, `64297`) are never forwarded.
 
+## 4. Isolation tests
+| Test | Expected | Result |
+| --- | --- | --- |
+| `ping` router / home PC | no reply | no reply |
+| `curl` OPNsense GUI (LAN and WAN address) | timeout | timeout |
+| `nmap -Pn -p 80,443` on router | filtered | filtered |
+| `nslookup` via firewall (53) | works | works |
+| `curl https://google.com` | works | works |
+| DNS to `1.1.1.1` directly | timeout | timeout |
+| IPv6 connection | fails | fails |
+| Honeypot to VPS public address | blocked | blocked |
+
+At first, pinging the home router seemed to work, but it turned out the container network was actually replying because it used similar subnet (192.168.0.0/20). The next section outlines how the issue was resolved.
+
+## 5. The problems I ran into
+1. **Isolation tests were misleading:** Pings to 192.168.0.1 were answered by the Docker bridge on the same VM `ip route` get showed `local ... dev lo`. Testing only valid with the honeypot stopped.
+2. **Anti-lockout rule bypassed my blocks.** The honeypot could open the firewall web GUI despite my block rules. Live View showed the matching rule was OPNsense's automatic anti-lockout rule. I disabled it (the GUI stays reachable from the home network through the WAN side).
+3. **Reply traffic took the wrong path.** Attackers' SYNs arrived, the honeypot answered with SYN-ACK, but the handshake never completed . Fixed by correcting the return path for traffic coming through the tunnel. `[exact mechanism: fill in]`
+4. **After resetting OPNsense, it couldn't connect back to VPS**: A catch-all forwarding rule was redirecting all incoming traffic directly back to OPNsense/the honeypot subnet. Because there was no exclusion rule `RETURN` for the WireGuard control traffic `51820/UDP`, the handshake packets from OPNsense were caught in a routing loop instead of being processed locally by the VPS. Adding an explicit bypass rule for the WireGuard port before the broad `DNAT`/routing rules resolved the issue.
+## 6. Results
+### 6.1. Top 10 Breakdown
+In one week T-Pot registered **1,419,516 events**, with **8,585 unique source IP addresses**.
+<br>
+<br>
+
+**Top 10 Countries** 
+![Top 10 Countries](images/Top_countries.png)
+
+**Top 10 Attacked Ports**
+![Top 10 ports](images/top_ports.png)
+
+
+**Top 10 Usernames tried in bruteforce**
+![Top 10 ports](images/top_usernames.png)
+
+**Top 10 Passwords tried in bruteforce**
+![Top 10 ports](images/top_passwords.png)
+
+**Top 10 Post-Exploitation commands**
+![Top 10 ports](images/top_input.png)
+
+
+**Top 10 Suricata CVE's**
+
+![Top 10 ports](images/top_cve_suricata.png)
+
+
 ---
 # Work in progress
